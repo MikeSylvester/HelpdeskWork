@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Settings, BarChart3, Ticket, Plus, Edit, Trash2 } from 'lucide-react';
+import { Users, Settings, BarChart3, Ticket, Plus, CreditCard as Edit, Trash2 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';

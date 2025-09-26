@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Clock, User, Tag, Paperclip } from 'lucide-react';
+import { ArrowLeft, CreditCard as Edit, Clock, User, Tag, Paperclip } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { apiService } from '../../services/api';
 import { Card } from '../../components/ui/Card';
