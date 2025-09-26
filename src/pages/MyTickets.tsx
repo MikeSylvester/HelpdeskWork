@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Eye, MessageCircle, Clock, User } from 'lucide-react';
+import { Plus, Eye, MessageCircle, Clock, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { apiService } from '../services/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input } from '../components/ui/Input';
+import { SearchInput } from '../components/ui/SearchInput';
+import { QuickFilters } from '../components/ui/QuickFilters';
 import { formatRelativeTime, hasPermission } from '../utils';
 import type { Ticket, User as UserType, Category, Priority, TicketStatus } from '../types';
 
@@ -20,8 +21,7 @@ export function MyTickets() {
   const [statuses, setStatuses] = useState<TicketStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,16 +60,30 @@ export function MyTickets() {
       );
     }
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(ticket => ticket.statusId === statusFilter);
-    }
-
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(ticket => ticket.categoryId === categoryFilter);
+    if (selectedFilters.length > 0) {
+      filtered = filtered.filter(ticket => {
+        return selectedFilters.some(filterId => 
+          ticket.statusId === filterId || 
+          ticket.categoryId === filterId ||
+          ticket.priorityId === filterId
+        );
+      });
     }
 
     setFilteredTickets(filtered);
-  }, [tickets, searchTerm, statusFilter, categoryFilter]);
+  }, [tickets, searchTerm, selectedFilters]);
+
+  const handleFilterChange = (filterId: string) => {
+    setSelectedFilters(prev => 
+      prev.includes(filterId) 
+        ? prev.filter(id => id !== filterId)
+        : [...prev, filterId]
+    );
+  };
+
+  const handleClearFilters = () => {
+    setSelectedFilters([]);
+  };
 
   const getUserById = (id: string) => users.find(u => u.id === id);
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
@@ -78,6 +92,28 @@ export function MyTickets() {
 
   const openTickets = filteredTickets.filter(t => !getStatusById(t.statusId)?.isClosed);
   const closedTickets = filteredTickets.filter(t => getStatusById(t.statusId)?.isClosed);
+
+  // Create filter options
+  const filterOptions = [
+    ...statuses.map(status => ({
+      id: status.id,
+      label: status.name,
+      color: status.color,
+      count: tickets.filter(t => t.statusId === status.id).length,
+    })),
+    ...categories.map(category => ({
+      id: category.id,
+      label: category.name,
+      color: category.color,
+      count: tickets.filter(t => t.categoryId === category.id).length,
+    })),
+    ...priorities.map(priority => ({
+      id: priority.id,
+      label: `${priority.name} Priority`,
+      color: priority.color,
+      count: tickets.filter(t => t.priorityId === priority.id).length,
+    })),
+  ];
 
   if (isLoading) {
     return (
@@ -173,38 +209,19 @@ export function MyTickets() {
       {/* Filters */}
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <Input
-              placeholder="Search tickets..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              leftIcon={<Search className="h-4 w-4" />}
-            />
-          </div>
-          <div className="flex gap-4">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="all">All Status</option>
-              {statuses.map(status => (
-                <option key={status.id} value={status.id}>{status.name}</option>
-              ))}
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="all">All Categories</option>
-              {categories.map(category => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Card>
+          <SearchInput
+            placeholder="Search tickets..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            className="max-w-md"
+          />
+          
+          <QuickFilters
+            options={filterOptions}
+            selectedFilters={selectedFilters}
+            onFilterChange={handleFilterChange}
+            onClearAll={handleClearFilters}
+          />
 
       {/* Tickets List */}
       <div className="space-y-4">
@@ -261,7 +278,10 @@ export function MyTickets() {
                       </div>
                       {category && (
                         <div className="flex items-center">
-                          <Filter className="h-4 w-4 mr-1" />
+                          <div 
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: category.color }}
+                          />
                           {category.name}
                         </div>
                       )}
@@ -294,7 +314,7 @@ export function MyTickets() {
                 No tickets found
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all'
+                {searchTerm || selectedFilters.length > 0
                   ? 'Try adjusting your search or filters'
                   : "You haven't submitted any tickets yet"}
               </p>

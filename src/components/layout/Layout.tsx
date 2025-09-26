@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { KeyboardShortcuts } from '../ui/KeyboardShortcuts';
 import { useAppStore } from '../../stores/app';
 
 export function Layout() {
@@ -43,6 +44,9 @@ export function Layout() {
           </div>
         </main>
       </div>
+      
+      {/* Keyboard shortcuts */}
+      <KeyboardShortcuts />
     </div>
   );
 }

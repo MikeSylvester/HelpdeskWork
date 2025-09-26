@@ -12,6 +12,8 @@ import { KnowledgeBase } from './pages/KnowledgeBase';
 import { Users } from './pages/Users';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
+import { AdminDashboard } from './features/admin/AdminDashboard';
+import { TicketDetails } from './features/tickets/TicketDetails';
 
 function App() {
   const { isAuthenticated } = useAuthStore();
@@ -31,6 +33,15 @@ function App() {
             element={
               <ProtectedRoute roles={['user', 'agent', 'admin']}>
                 <MyTickets />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/tickets/:id" 
+            element={
+              <ProtectedRoute roles={['user', 'agent', 'admin']}>
+                <TicketDetails />
               </ProtectedRoute>
             } 
           />
@@ -85,6 +96,15 @@ function App() {
             element={
               <ProtectedRoute roles={['admin']}>
                 <Settings />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <AdminDashboard />
               </ProtectedRoute>
             } 
           />

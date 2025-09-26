@@ -10,9 +10,13 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  LogOut,
+  User,
+  Shield,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useAppStore } from '../../stores/app';
+import { Button } from '../ui/Button';
 import { cn, hasPermission } from '../../utils';
 
 interface SidebarProps {
@@ -22,7 +26,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarProps) {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
   
   const isCollapsed = !isMobile && sidebarCollapsed;
@@ -71,6 +75,12 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
       roles: ['agent', 'admin'],
     },
     {
+      name: 'Admin Panel',
+      href: '/admin',
+      icon: Shield,
+      roles: ['admin'],
+    },
+    {
       name: 'Settings',
       href: '/settings',
       icon: Settings,
@@ -81,6 +91,11 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
   const filteredNavigation = navigation.filter(item =>
     hasPermission(user?.role || 'user', item.roles)
   );
+
+  const handleLogout = () => {
+    logout();
+    if (onClose) onClose();
+  };
 
   const sidebarContent = (
     <>
@@ -112,6 +127,7 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
             key={item.name}
             to={item.href}
             onClick={isMobile ? onClose : undefined}
+            title={isCollapsed ? item.name : undefined}
             className={({ isActive }) =>
               cn(
                 'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
@@ -119,34 +135,75 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
                 isActive
                   ? 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-400'
                   : 'text-gray-700 dark:text-gray-300',
-                isCollapsed && 'justify-center px-2'
+                isCollapsed && 'justify-center px-3 py-3'
               )
             }
           >
-            <item.icon className={cn('h-5 w-5', !isCollapsed && 'mr-3')} />
+            <item.icon className={cn(isCollapsed ? 'h-6 w-6' : 'h-5 w-5', !isCollapsed && 'mr-3')} />
             {!isCollapsed && item.name}
           </NavLink>
         ))}
       </nav>
 
       {/* User Info */}
-      {user && !isCollapsed && (
+      {user && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-              </span>
+          {isCollapsed ? (
+            <div className="space-y-2">
+              <div className="flex justify-center">
+                <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="w-full p-2 h-auto"
+                title="Sign out"
+              >
+                <LogOut className="h-5 w-5 text-red-500" />
+              </Button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {user.firstName} {user.lastName}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                {user.role}
-              </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {user.role}
+                  </p>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 justify-start"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </>
