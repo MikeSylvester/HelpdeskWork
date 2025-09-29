@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Eye, EyeOff } from 'lucide-react';
+import { Send, Paperclip } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { apiService } from '../../services/api';
 import { Button } from '../../components/ui/Button';
@@ -16,10 +16,8 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isInternal, setIsInternal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  const [showInternal, setShowInternal] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +30,7 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
         setMessages(messagesData);
         setUsers(usersData);
       } catch (error) {
-        console.error('Failed to fetch messages:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -61,7 +59,7 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
         ticketId,
         userId: user.id,
         content: newMessage.trim(),
-        isInternal: isInternal && (user.role === 'agent' || user.role === 'admin'),
+        isInternal: false, // Regular messages are always public
       });
 
       setMessages(prev => [...prev, message]);
@@ -73,11 +71,6 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
     }
   };
 
-  const filteredMessages = showInternal 
-    ? messages 
-    : messages.filter(m => !m.isInternal);
-
-  const canSendInternal = user?.role === 'agent' || user?.role === 'admin';
 
   if (isLoading) {
     return (
@@ -94,23 +87,12 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Conversation
         </h3>
-        {canSendInternal && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowInternal(!showInternal)}
-            className="flex items-center space-x-2"
-          >
-            {showInternal ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            <span>{showInternal ? 'Hide Internal' : 'Show Internal'}</span>
-          </Button>
-        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {filteredMessages.length > 0 ? (
-          filteredMessages.map((message) => {
+        {messages.length > 0 ? (
+          messages.map((message) => {
             const messageUser = getUserById(message.userId);
             const isOwnMessage = message.userId === user?.id;
             
@@ -130,18 +112,11 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
                   <div className={`${isOwnMessage ? 'mr-2' : 'ml-2'}`}>
                     <div
                       className={`px-4 py-2 rounded-lg ${
-                        message.isInternal
-                          ? 'bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
-                          : isOwnMessage
+                        isOwnMessage
                           ? 'bg-orange-500 text-white'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                       }`}
                     >
-                      {message.isInternal && (
-                        <div className="text-xs font-medium text-yellow-800 dark:text-yellow-400 mb-1">
-                          Internal Note
-                        </div>
-                      )}
                       <p className="text-sm">{message.content}</p>
                     </div>
                     <div className={`mt-1 text-xs text-gray-500 dark:text-gray-400 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
@@ -170,20 +145,6 @@ export function TicketChat({ ticketId, ticketUserId }: TicketChatProps) {
       {/* Message Input */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-4">
         <form onSubmit={handleSendMessage} className="space-y-3">
-          {canSendInternal && (
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="internal-note"
-                checked={isInternal}
-                onChange={(e) => setIsInternal(e.target.checked)}
-                className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-              />
-              <label htmlFor="internal-note" className="text-sm text-gray-700 dark:text-gray-300">
-                Internal note (not visible to customer)
-              </label>
-            </div>
-          )}
           <div className="flex space-x-2">
             <div className="flex-1 relative">
               <textarea

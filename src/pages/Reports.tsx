@@ -201,7 +201,7 @@ export function Reports() {
           </div>
           <div className="space-y-4">
             {metrics?.categoryDistribution.map((item) => {
-              const category = getCategoryById(item.categoryId);
+              const category = categories.find(c => c.name === item.category);
               const percentage = Math.round((item.count / (metrics?.totalTickets || 1)) * 100);
               
               return (

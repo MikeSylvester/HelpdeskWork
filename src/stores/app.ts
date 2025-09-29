@@ -12,8 +12,7 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      isDarkMode: typeof window !== 'undefined' ? 
-        window.matchMedia('(prefers-color-scheme: dark)').matches : false,
+      isDarkMode: false, // Default to light mode, will be updated on client side
       sidebarCollapsed: false,
       
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),

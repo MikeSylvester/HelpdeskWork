@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, roles = [] }: ProtectedRouteProps) {
     return null;
   }
 
-  if (roles.length > 0 && !hasPermission(user.role, roles)) {
+  if (roles.length > 0 && !hasPermission(user.roles, roles)) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">

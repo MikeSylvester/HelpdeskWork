@@ -47,7 +47,7 @@ export function Users() {
     }
 
     if (roleFilter !== 'all') {
-      filtered = filtered.filter(user => user.role === roleFilter);
+      filtered = filtered.filter(user => user.roles.includes(roleFilter));
     }
 
     if (statusFilter !== 'all') {
@@ -87,9 +87,9 @@ export function Users() {
   const userStats = {
     total: users.length,
     active: users.filter(u => u.isActive).length,
-    admins: users.filter(u => u.role === 'admin').length,
-    agents: users.filter(u => u.role === 'agent').length,
-    users: users.filter(u => u.role === 'user').length,
+    admins: users.filter(u => u.roles.includes('admin')).length,
+    agents: users.filter(u => u.roles.includes('agent')).length,
+    users: users.filter(u => u.roles.includes('user')).length,
   };
 
   if (isLoading) {
@@ -281,8 +281,8 @@ export function Users() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                      {user.role}
+                    <Badge variant={getRoleBadgeVariant(user.roles[0])} className="capitalize">
+                      {user.roles.join(', ')}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -348,7 +348,7 @@ export function Users() {
                 Role
               </label>
               <select
-                value={selectedUser.role}
+                value={selectedUser.roles[0]}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
                 <option value="user">User</option>

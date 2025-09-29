@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Ticket, TrendingUp, Clock, Users, Plus, BookOpen, Settings } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Ticket, TrendingUp, Clock, Users, Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { apiService } from '../services/api';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { formatRelativeTime, hasPermission } from '../utils';
-import type { DashboardMetrics, Ticket as TicketType, User, Category, Priority, TicketStatus } from '../types';
+import type { DashboardMetrics, Ticket as TicketType, User, Priority, TicketStatus } from '../types';
 
 export function Dashboard() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentTickets, setRecentTickets] = useState<TicketType[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [priorities, setPriorities] = useState<Priority[]>([]);
   const [statuses, setStatuses] = useState<TicketStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,11 +21,10 @@ export function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsData, ticketsData, usersData, categoriesData, prioritiesData, statusesData] = await Promise.all([
+        const [metricsData, ticketsData, usersData, prioritiesData, statusesData] = await Promise.all([
           apiService.getDashboardMetrics(),
-          apiService.getTickets(user?.role === 'user' ? { userId: user.id } : {}),
+          apiService.getTickets(user?.roles.includes('user') ? { userId: user.id } : {}),
           apiService.getUsers(),
-          apiService.getCategories(),
           apiService.getPriorities(),
           apiService.getTicketStatuses(),
         ]);
@@ -34,7 +32,6 @@ export function Dashboard() {
         setMetrics(metricsData);
         setRecentTickets(ticketsData.slice(0, 5));
         setUsers(usersData);
-        setCategories(categoriesData);
         setPriorities(prioritiesData);
         setStatuses(statusesData);
       } catch (error) {
@@ -48,9 +45,6 @@ export function Dashboard() {
   }, [user]);
 
   const getUserById = (id: string) => users.find(u => u.id === id);
-  const getCategoryById = (id: string) => categories.find(c => c.id === id);
-  const getPriorityById = (id: string) => priorities.find(p => p.id === id);
-  const getStatusById = (id: string) => statuses.find(s => s.id === id);
 
   if (isLoading) {
     return (
@@ -94,7 +88,7 @@ export function Dashboard() {
       icon: Users,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100 dark:bg-purple-900/20',
-      show: hasPermission(user?.role || '', ['admin', 'agent']),
+      show: hasPermission(user?.roles || [], ['admin', 'agent']),
     },
   ].filter(card => card.show !== false);
 
@@ -110,14 +104,15 @@ export function Dashboard() {
             Here's what's happening with your support desk today.
           </p>
         </div>
-        {hasPermission(user?.role || '', ['user']) && (
+        {hasPermission(user?.roles || [], ['user']) && (
           <div className="mt-4 sm:mt-0">
-            <Button asChild>
-              <Link to="/submit-ticket">
-                <Plus className="h-4 w-4 mr-2" />
-                New Ticket
-              </Link>
-            </Button>
+            <Link 
+              to="/submit-ticket"
+              className="inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500 px-4 py-2 text-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Ticket
+            </Link>
           </div>
         )}
       </div>
@@ -150,39 +145,50 @@ export function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Recent Tickets
             </h2>
-            <Button variant="outline" size="sm" asChild>
-              <Link to={user?.role === 'user' ? '/tickets' : '/all-tickets'}>
-                View all
-              </Link>
-            </Button>
+            <Link 
+              to={user?.roles.includes('user') ? '/tickets' : '/all-tickets'}
+              className="inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 focus:ring-gray-500 px-3 py-1.5 text-sm"
+            >
+              View all
+            </Link>
           </div>
           <div className="space-y-3">
             {recentTickets.length > 0 ? (
               recentTickets.map((ticket) => {
-                const category = getCategoryById(ticket.categoryId);
-                const priority = getPriorityById(ticket.priorityId);
-                const status = getStatusById(ticket.statusId);
-                const ticketUser = getUserById(ticket.userId);
+                const priority = priorities.find(p => p.name.toLowerCase() === ticket.priority);
+                const status = statuses.find(s => s.name.toLowerCase() === ticket.status);
+                const ticketUser = getUserById(ticket.requesterId);
 
                 return (
                   <div
-                    key={ticket.id}
-                    className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    key={ticket.ticketId}
+                    className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      // Check if user has rights to edit this ticket
+                      const canEdit = user?.id === ticket.requesterId || user?.roles.includes('admin') || user?.roles.includes('agent');
+                      if (canEdit) {
+                        navigate(`/tickets/${ticket.ticketId}`);
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <Link
-                          to={`/tickets/${ticket.id}`}
-                          className="text-sm font-medium text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400"
-                        >
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400">
                           {ticket.title}
-                        </Link>
+                        </h4>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                           {ticketUser && (
                             <span>by {ticketUser.firstName} {ticketUser.lastName}</span>
                           )}
                           <span>•</span>
                           <span>{formatRelativeTime(ticket.createdAt)}</span>
+                          {/* Show edit hint if user has rights */}
+                          {(user?.id === ticket.requesterId || user?.roles.includes('admin') || user?.roles.includes('agent')) && (
+                            <>
+                              <span>•</span>
+                              <span className="text-orange-600 dark:text-orange-400">Click to edit</span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 ml-2">
@@ -219,51 +225,94 @@ export function Dashboard() {
           </div>
         </Card>
 
-        {/* Quick Actions */}
+        {/* All Open and Unassigned Tickets */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Quick Actions
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Open & Unassigned Tickets
+            </h2>
+            <Link 
+              to="/all-unassigned"
+              className="inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 focus:ring-gray-500 px-3 py-1.5 text-sm"
+            >
+              View all
+            </Link>
+          </div>
           <div className="space-y-3">
-            {hasPermission(user?.role || '', ['user']) && (
-              <Button variant="outline" size="md" asChild className="w-full justify-start">
-                <Link to="/submit-ticket">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Submit New Ticket
-                </Link>
-              </Button>
-            )}
-            
-            <Button variant="outline" size="md" asChild className="w-full justify-start">
-              <Link to="/knowledge-base">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Browse Knowledge Base
-              </Link>
-            </Button>
-            
-            {hasPermission(user?.role || '', ['agent', 'admin']) && (
-              <Button variant="outline" size="md" asChild className="w-full justify-start">
-                <Link to="/all-tickets">
-                  <Ticket className="h-4 w-4 mr-2" />
-                  Manage Tickets
-                </Link>
-              </Button>
-            )}
-            
-            {hasPermission(user?.role || '', ['admin']) && (
-              <Button variant="outline" size="md" asChild className="w-full justify-start">
-                <Link to="/settings">
-                  <Settings className="h-4 w-4 mr-2" />
-                  System Settings
-                </Link>
-              </Button>
-            )}
+            {(() => {
+              // Get open and unassigned tickets
+              const openUnassignedTickets = recentTickets.filter(ticket => 
+                (ticket.status === 'New' || ticket.status === 'In Progress') &&
+                (!ticket.assignedAgentId && (!ticket.assignedAgents || ticket.assignedAgents.length === 0))
+              ).slice(0, 5);
+
+              return openUnassignedTickets.length > 0 ? (
+                openUnassignedTickets.map((ticket) => {
+                  const priority = priorities.find(p => p.name.toLowerCase() === ticket.priority);
+                  const status = statuses.find(s => s.name.toLowerCase() === ticket.status);
+                  const ticketUser = getUserById(ticket.requesterId);
+
+                  return (
+                    <div
+                      key={ticket.ticketId}
+                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/tickets/${ticket.ticketId}`)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400">
+                            {ticket.title}
+                          </h4>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            {ticketUser && (
+                              <span>by {ticketUser.firstName} {ticketUser.lastName}</span>
+                            )}
+                            <span>•</span>
+                            <span>{formatRelativeTime(ticket.createdAt)}</span>
+                            <span>•</span>
+                            <span className="text-orange-600 dark:text-orange-400">Unassigned</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 ml-2">
+                          {priority && (
+                            <Badge
+                              variant={
+                                priority.level >= 4 ? 'danger' : 
+                                priority.level >= 3 ? 'warning' : 
+                                'default'
+                              }
+                              size="sm"
+                            >
+                              {priority.name}
+                            </Badge>
+                          )}
+                          {status && (
+                            <Badge
+                              variant={status.isClosed ? 'success' : 'secondary'}
+                              size="sm"
+                            >
+                              {status.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Ticket className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>No unassigned tickets</p>
+                  <p className="text-sm">All tickets have been assigned</p>
+                </div>
+              );
+            })()}
           </div>
         </Card>
       </div>
 
       {/* Ticket Trends Chart (Placeholder) */}
-      {hasPermission(user?.role || '', ['agent', 'admin']) && (
+      {hasPermission(user?.roles || [], ['agent', 'admin']) && (
         <Card>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Ticket Trends

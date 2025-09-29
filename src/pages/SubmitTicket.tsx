@@ -1,28 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Paperclip, X } from 'lucide-react';
+import { Send, Paperclip, X, User } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
 import { apiService } from '../services/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import type { Category, Priority } from '../types';
+import { hasPermission } from '../utils';
+import type { Category, Priority, User as UserType } from '../types';
 
 export function SubmitTicket() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [priorities, setPriorities] = useState<Priority[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    categoryId: '',
-    priorityId: '',
-    tags: '',
+    category: '',
+    subCategoryId: '',
+    priority: '',
+    requesterId: '',
+    requesterName: '',
+    requesterEmail: '',
+    requesterPhone: '',
+    requesterDepartment: '',
+    requesterJobTitle: '',
+    requesterManager: '',
+    requesterLocation: '',
+    ticketLocation: {
+      building: '',
+      floor: '',
+      room: '',
+      desk: '',
+      address: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+    },
+    escalationLevel: 'tier 1' as 'tier 1' | 'tier 2' | 'tier 3',
+    internalNotes: '',
   });
+
+  const [additionalContacts, setAdditionalContacts] = useState<string[]>([]);
+  const [contactSearch, setContactSearch] = useState('');
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const contactRef = useRef<HTMLDivElement>(null);
+  
+  // Separate state for requester search
+  const [requesterSearch, setRequesterSearch] = useState('');
+  const [showRequesterDropdown, setShowRequesterDropdown] = useState(false);
+  const requesterRef = useRef<HTMLDivElement>(null);
   
   const [attachments, setAttachments] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -31,12 +64,14 @@ export function SubmitTicket() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [categoriesData, prioritiesData] = await Promise.all([
+        const [categoriesData, prioritiesData, usersData] = await Promise.all([
           apiService.getCategories(),
           apiService.getPriorities(),
+          apiService.getUsers(),
         ]);
         setCategories(categoriesData);
         setPriorities(prioritiesData);
+        setUsers(usersData);
         
         // Set default values
         if (categoriesData.length > 0) {
@@ -49,6 +84,21 @@ export function SubmitTicket() {
             priorityId: normalPriority?.id || prioritiesData[0].id 
           }));
         }
+        
+        // Populate requester information with current user's data
+        if (user) {
+          setFormData(prev => ({
+            ...prev,
+            requesterId: user.id,
+            requesterName: `${user.firstName} ${user.lastName}`,
+            requesterEmail: user.email,
+            requesterPhone: user.phoneNumber,
+            requesterDepartment: user.department,
+            requesterJobTitle: user.jobTitle,
+            requesterManager: user.manager || '',
+            requesterLocation: user.defaultLocation,
+          }));
+        }
       } catch (error) {
         console.error('Failed to fetch form data:', error);
       } finally {
@@ -57,6 +107,23 @@ export function SubmitTicket() {
     };
 
     fetchData();
+  }, [user]);
+
+  // Handle click outside for contact dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (contactRef.current && !contactRef.current.contains(event.target as Node)) {
+        setShowContactDropdown(false);
+      }
+      if (requesterRef.current && !requesterRef.current.contains(event.target as Node)) {
+        setShowRequesterDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -76,6 +143,34 @@ export function SubmitTicket() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleAddContact = (userId: string) => {
+    if (!additionalContacts.includes(userId)) {
+      setAdditionalContacts(prev => [...prev, userId]);
+    }
+    setContactSearch('');
+    setShowContactDropdown(false);
+  };
+
+  const handleRemoveContact = (userId: string) => {
+    setAdditionalContacts(prev => prev.filter(id => id !== userId));
+  };
+
+  const handleRequesterSelect = (selectedUser: UserType) => {
+    setFormData(prev => ({
+      ...prev,
+      requesterId: selectedUser.id,
+      requesterName: `${selectedUser.firstName} ${selectedUser.lastName}`,
+      requesterEmail: selectedUser.email,
+      requesterPhone: selectedUser.phoneNumber,
+      requesterDepartment: selectedUser.department,
+      requesterJobTitle: selectedUser.jobTitle,
+      requesterManager: selectedUser.manager || '',
+      requesterLocation: selectedUser.defaultLocation,
+    }));
+  };
+
+  const canCreateForOthers = hasPermission(user?.roles || [], ['agent', 'admin']);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
@@ -87,12 +182,16 @@ export function SubmitTicket() {
       newErrors.description = 'Description is required';
     }
     
-    if (!formData.categoryId) {
-      newErrors.categoryId = 'Category is required';
+    if (!formData.category) {
+      newErrors.category = 'Category is required';
     }
     
-    if (!formData.priorityId) {
-      newErrors.priorityId = 'Priority is required';
+    if (!formData.subCategoryId) {
+      newErrors.subCategory = 'Sub Category is required';
+    }
+    
+    if (!formData.priority) {
+      newErrors.priority = 'Priority is required';
     }
 
     setErrors(newErrors);
@@ -107,23 +206,43 @@ export function SubmitTicket() {
     setIsSubmitting(true);
     
     try {
-      const tags = formData.tags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
+      // Get subcategory name for display
+      const selectedCategory = categories.find(c => c.name === formData.category);
+      const selectedSubCategory = selectedCategory?.subCategories?.find(sc => sc.id === formData.subCategoryId);
 
       const newTicket = await apiService.createTicket({
         title: formData.title,
         description: formData.description,
-        userId: user.id,
-        categoryId: formData.categoryId,
-        priorityId: formData.priorityId,
-        statusId: '1', // Default to 'New' status
-        tags,
-        attachments: [], // Mock attachments for now
-      });
+        category: formData.category,
+        subCategoryId: formData.subCategoryId,
+        subCategory: selectedSubCategory?.name,
+        priority: formData.priority as 'low' | 'medium' | 'high' | 'urgent',
+        status: 'New', // Default to 'New' status
+        requesterId: formData.requesterId || user.id,
+        requesterName: formData.requesterName || user.displayName,
+        requesterEmail: formData.requesterEmail || user.email,
+        requesterPhone: formData.requesterPhone || user.phoneNumber,
+        requesterDepartment: formData.requesterDepartment || user.department,
+        requesterJobTitle: formData.requesterJobTitle || user.jobTitle,
+        requesterManager: formData.requesterManager || user.manager,
+        requesterLocation: formData.requesterLocation || user.defaultLocation,
+        additionalContacts: additionalContacts.length > 0 ? additionalContacts.map(id => {
+          const contactUser = users.find(u => u.id === id);
+          return {
+            name: contactUser?.displayName || `${contactUser?.firstName} ${contactUser?.lastName}`,
+            email: contactUser?.email || '',
+            phone: contactUser?.phoneNumber,
+            role: 'Additional Contact'
+          };
+        }) : undefined,
+        ticketLocation: Object.values(formData.ticketLocation).some(value => value.trim()) ? formData.ticketLocation : undefined,
+        escalationLevel: formData.escalationLevel,
+        chatThread: [],
+        attachments: [],
+        internalNotes: formData.internalNotes,
+      }, user.id);
 
-      navigate(`/tickets/${newTicket.id}`);
+      navigate(`/tickets/${newTicket.ticketId}`);
     } catch (error) {
       console.error('Failed to submit ticket:', error);
       setErrors({ submit: 'Failed to submit ticket. Please try again.' });
@@ -183,21 +302,21 @@ export function SubmitTicket() {
                 Category
               </label>
               <select
-                name="categoryId"
-                value={formData.categoryId}
+                name="category"
+                value={formData.category}
                 onChange={handleInputChange}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 required
               >
                 <option value="">Select a category</option>
                 {categories.map(category => (
-                  <option key={category.id} value={category.id}>
+                  <option key={category.id} value={category.name}>
                     {category.name}
                   </option>
                 ))}
               </select>
-              {errors.categoryId && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.categoryId}</p>
+              {errors.category && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.category}</p>
               )}
             </div>
 
@@ -206,24 +325,145 @@ export function SubmitTicket() {
                 Priority
               </label>
               <select
-                name="priorityId"
-                value={formData.priorityId}
+                name="priority"
+                value={formData.priority}
                 onChange={handleInputChange}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 required
               >
                 <option value="">Select priority</option>
                 {priorities.map(priority => (
-                  <option key={priority.id} value={priority.id}>
+                  <option key={priority.id} value={priority.name.toLowerCase()}>
                     {priority.name}
                   </option>
                 ))}
               </select>
-              {errors.priorityId && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.priorityId}</p>
+              {errors.priority && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.priority}</p>
               )}
             </div>
           </div>
+
+          {/* Sub Category */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Sub Category <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="subCategoryId"
+              value={formData.subCategoryId}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, subCategoryId: e.target.value }));
+              }}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              disabled={!formData.category}
+            >
+              <option value="">Select a sub category...</option>
+              {formData.category && categories.find(c => c.name === formData.category)?.subCategories?.map(subCategory => (
+                <option key={subCategory.id} value={subCategory.id}>
+                  {subCategory.name}
+                </option>
+              ))}
+            </select>
+            {errors.subCategory && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.subCategory}</p>
+            )}
+          </div>
+
+          {/* Requester Selection (for agents/admins) */}
+          {canCreateForOthers && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <User className="h-4 w-4 inline mr-1" />
+                Create ticket for
+              </label>
+              <div className="space-y-3">
+                {/* Current Requester Display */}
+                <div className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">
+                        {formData.requesterName.split(' ').map(n => n.charAt(0)).join('')}
+                      </span>
+                    </div>
+                <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {formData.requesterName}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {formData.requesterEmail}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Search */}
+                <div className="relative" ref={requesterRef}>
+                  <input
+                    type="text"
+                    placeholder="Search users to change requester..."
+                    value={requesterSearch}
+                    onChange={(e) => {
+                      setRequesterSearch(e.target.value);
+                      setShowRequesterDropdown(true);
+                    }}
+                    onFocus={() => setShowRequesterDropdown(true)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  
+                  {showRequesterDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {users
+                        .filter(u => 
+                          u.id !== user?.id && 
+                          (u.displayName?.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                           u.firstName.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                           u.lastName.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                           u.email.toLowerCase().includes(requesterSearch.toLowerCase()))
+                        )
+                        .map(userOption => (
+                          <button
+                            key={userOption.id}
+                            type="button"
+                            onClick={() => {
+                              handleRequesterSelect(userOption);
+                              setRequesterSearch('');
+                              setShowRequesterDropdown(false);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-3"
+                          >
+                            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-sm font-medium">
+                                {userOption.firstName.charAt(0)}{userOption.lastName.charAt(0)}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {userOption.displayName || `${userOption.firstName} ${userOption.lastName}`}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {userOption.email}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      {users.filter(u => 
+                        u.id !== user?.id && 
+                        (u.displayName?.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                         u.firstName.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                         u.lastName.toLowerCase().includes(requesterSearch.toLowerCase()) ||
+                         u.email.toLowerCase().includes(requesterSearch.toLowerCase()))
+                      ).length === 0 && (
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                          No users found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div>
@@ -244,14 +484,203 @@ export function SubmitTicket() {
             )}
           </div>
 
-          {/* Tags */}
-          <Input
-            label="Tags (optional)"
-            name="tags"
-            value={formData.tags}
+          {/* Ticket Location */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Ticket Location (optional)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Building</label>
+                <input
+                  type="text"
+                  value={formData.ticketLocation.building}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    ticketLocation: { ...prev.ticketLocation, building: e.target.value }
+                  }))}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Building name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Floor</label>
+                <input
+                  type="text"
+                  value={formData.ticketLocation.floor}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    ticketLocation: { ...prev.ticketLocation, floor: e.target.value }
+                  }))}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Floor number"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Room</label>
+                <input
+                  type="text"
+                  value={formData.ticketLocation.room}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    ticketLocation: { ...prev.ticketLocation, room: e.target.value }
+                  }))}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Room number"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Desk/Workstation</label>
+                <input
+                  type="text"
+                  value={formData.ticketLocation.desk}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    ticketLocation: { ...prev.ticketLocation, desk: e.target.value }
+                  }))}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Desk number"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Escalation Level - Admin Only */}
+          {canCreateForOthers && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Escalation Level
+              </label>
+              <select
+                name="escalationLevel"
+                value={formData.escalationLevel}
+                onChange={handleInputChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="tier 1">Tier 1 - Basic Support</option>
+                <option value="tier 2">Tier 2 - Advanced Support</option>
+                <option value="tier 3">Tier 3 - Expert Support</option>
+              </select>
+            </div>
+          )}
+
+          {/* Internal Notes (for agents/admins) */}
+          {canCreateForOthers && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Internal Notes (optional)
+              </label>
+              <textarea
+                name="internalNotes"
+                value={formData.internalNotes}
             onChange={handleInputChange}
-            placeholder="Enter tags separated by commas (e.g., login, password, urgent)"
-          />
+                rows={3}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                placeholder="Internal notes visible only to agents and admins..."
+              />
+            </div>
+          )}
+
+          {/* Additional Contacts */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Additional Contacts (optional)
+            </label>
+            <div className="space-y-3">
+              {additionalContacts.map((userId) => {
+                const contactUser = users.find(u => u.id === userId);
+                return (
+                  <div key={userId} className="flex items-center justify-between p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">
+                          {contactUser?.firstName.charAt(0)}{contactUser?.lastName.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {contactUser?.displayName || `${contactUser?.firstName} ${contactUser?.lastName}`}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {contactUser?.email}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveContact(userId)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+              
+              {/* Add Contact Search */}
+              <div className="relative" ref={contactRef}>
+                <input
+                  type="text"
+                  placeholder="Search users to add as additional contacts..."
+                  value={contactSearch}
+                  onChange={(e) => {
+                    setContactSearch(e.target.value);
+                    setShowContactDropdown(true);
+                  }}
+                  onFocus={() => setShowContactDropdown(true)}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                
+                {showContactDropdown && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {users
+                      .filter(u => 
+                        u.id !== user?.id && 
+                        !additionalContacts.includes(u.id) &&
+                        (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                         u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                         u.lastName.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                         u.email.toLowerCase().includes(contactSearch.toLowerCase()))
+                      )
+                      .map(userOption => (
+                        <button
+                          key={userOption.id}
+                          type="button"
+                          onClick={() => handleAddContact(userOption.id)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-3"
+                        >
+                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">
+                              {userOption.firstName.charAt(0)}{userOption.lastName.charAt(0)}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {userOption.displayName || `${userOption.firstName} ${userOption.lastName}`}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {userOption.email}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    {users.filter(u => 
+                      u.id !== user?.id && 
+                      !additionalContacts.includes(u.id) &&
+                      (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                       u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                       u.lastName.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                       u.email.toLowerCase().includes(contactSearch.toLowerCase()))
+                    ).length === 0 && (
+                      <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                        No users found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* File Attachments */}
           <div>

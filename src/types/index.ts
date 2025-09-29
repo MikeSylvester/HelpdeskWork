@@ -1,9 +1,40 @@
 export interface User {
+  // Identity & Contact Info
   id: string;
-  email: string;
+  employeeId: string; // Unique ID
   firstName: string;
   lastName: string;
-  role: 'user' | 'agent' | 'admin';
+  displayName: string;
+  email: string;
+  phoneNumber: string; // work phone
+  mobileNumber?: string; // optional
+  department: string;
+  jobTitle: string;
+  manager?: string; // name or ID of their manager
+  
+  // Location & Org Info
+  defaultLocation: string; // auto-filled from M365
+  currentLocation?: string; // editable if different from default
+  officeAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+  };
+  timeZone: string;
+  
+  // System / Access Info
+  username: string; // AD/M365 login
+  employeeIdSystem?: string; // if applicable
+  roles: ('user' | 'agent' | 'admin')[]; // for the help desk system
+  
+  // Preferences
+  language: string;
+  notificationPreferences: ('email' | 'in-app' | 'both')[];
+  darkModeEnabled: boolean;
+  
+  // Legacy fields for compatibility
   avatar?: string;
   createdAt: Date;
   isActive: boolean;
@@ -14,6 +45,15 @@ export interface Category {
   name: string;
   description: string;
   color: string;
+  isActive: boolean;
+  subCategories?: SubCategory[];
+}
+
+export interface SubCategory {
+  id: string;
+  name: string;
+  description?: string;
+  categoryId: string;
   isActive: boolean;
 }
 
@@ -34,18 +74,97 @@ export interface TicketStatus {
 }
 
 export interface Ticket {
-  id: string;
-  title: string;
+  // Core Info
+  ticketId: string; // unique identifier
+  title: string; // Title of Issue
   description: string;
-  userId: string;
-  assignedToId?: string;
-  categoryId: string;
-  priorityId: string;
-  statusId: string;
+  category: string; // hardware, software, network, access, HR, facilities, etc.
+  subCategoryId?: string; // more specific categorization ID
+  subCategory?: string; // subcategory name for display
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'New' | 'In Progress' | 'Resolved' | 'Closed' | 'Waiting for Customer';
+  
+  // Requester Info (from User Profile at creation)
+  requesterId: string; // links to userId
+  requesterName: string;
+  requesterEmail: string;
+  requesterPhone: string;
+  requesterDepartment: string;
+  requesterJobTitle: string;
+  requesterManager?: string;
+  requesterLocation: string; // defaults from profile, editable if needed
+  
+  // Additional Contacts
+  additionalContacts?: {
+    name: string;
+    email: string;
+    phone?: string;
+    role: string; // e.g., "Manager", "Team Lead", "Technical Contact"
+  }[];
+  
+  // Assignment & Ownership
+  assignedAgent?: string; // primary assigned agent name
+  assignedAgentId?: string; // primary assigned agent ID
+  assignedAgents?: string[]; // array of assigned agent IDs
+  assignedAgentNames?: string[]; // array of assigned agent names
+  escalationLevel: 'tier 1' | 'tier 2' | 'tier 3';
+  
+  // Ticket Location (where the issue is occurring)
+  ticketLocation?: {
+    building?: string;
+    floor?: string;
+    room?: string;
+    desk?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  
+  // Collaboration
+  chatThread: Message[]; // messages between requester & agents
+  attachments: Attachment[]; // files, screenshots, logs
+  workLog: WorkLogEntry[]; // sequential work log entries by agents/admins
+  
+  // Resolution
+  resolution?: string; // resolution details
+  resolutionSteps?: string[]; // step-by-step resolution process
+  
+  // Timestamps
   createdAt: Date;
   updatedAt: Date;
-  tags: string[];
-  attachments: Attachment[];
+  resolvedAt?: Date;
+  closedAt?: Date;
+  
+  // Update History
+  updateHistory?: TicketUpdate[];
+}
+
+export interface TicketUpdate {
+  id: string;
+  ticketId: string;
+  updatedBy: string; // user ID who made the update
+  updatedByName: string; // user name for display
+  updatedByEmail: string; // user email for display
+  action: 'created' | 'updated' | 'assigned' | 'status_changed' | 'resolved' | 'closed' | 'reopened' | 'commented';
+  field?: string; // specific field that was updated
+  oldValue?: string; // previous value
+  newValue?: string; // new value
+  description: string; // human-readable description of the change
+  timestamp: Date;
+  metadata?: Record<string, any>; // additional data about the update
+}
+
+export interface WorkLogEntry {
+  id: string;
+  ticketId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  content: string;
+  timestamp: Date;
+  type: 'work_log' | 'note' | 'action';
 }
 
 export interface Attachment {

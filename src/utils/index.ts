@@ -4,26 +4,44 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
-export function formatDate(date: Date): string {
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return 'N/A';
+  
+  const dateObj = date instanceof Date ? date : new Date(date);
+  
+  // Check if the date is valid
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(date);
+  }).format(dateObj);
 }
 
-export function formatRelativeTime(date: Date): string {
+export function formatRelativeTime(date: Date | string | null | undefined): string {
+  if (!date) return 'N/A';
+  
+  const dateObj = date instanceof Date ? date : new Date(date);
+  
+  // Check if the date is valid
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  
   const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
   
   if (diffInSeconds < 60) return 'Just now';
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
   if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
   
-  return formatDate(date);
+  return formatDate(dateObj);
 }
 
 export function truncateText(text: string, maxLength: number): string {
@@ -35,8 +53,10 @@ export function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-export function hasPermission(userRole: string, requiredRoles: string[]): boolean {
-  return requiredRoles.includes(userRole);
+export function hasPermission(userRoles: string | string[], requiredRoles: string[]): boolean {
+  // Handle both old single role and new roles array
+  const userRolesArray = Array.isArray(userRoles) ? userRoles : [userRoles];
+  return userRolesArray.some(role => requiredRoles.includes(role));
 }
 
 export function formatFileSize(bytes: number): string {

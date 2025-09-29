@@ -31,6 +31,7 @@ export const useAuthStore = create<AuthState>()(
       
       logout: () => {
         set({ user: null, isAuthenticated: false });
+        // No redirect - user stays on current page
       },
       
       updateUser: (updates: Partial<User>) => {

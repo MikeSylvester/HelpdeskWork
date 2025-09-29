@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Upload, Palette, Shield, Bell, Mail, Globe } from 'lucide-react';
+import { Save, Upload, Palette, Shield, Bell, Mail, Globe, Plus, Edit, Trash2, X } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import type { SystemSettings, Category, Priority, TicketStatus } from '../types';
+import { Modal } from '../components/ui/Modal';
+import { Badge } from '../components/ui/Badge';
+import type { SystemSettings, Category, Priority, TicketStatus, SubCategory } from '../types';
 
 export function Settings() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -14,6 +16,12 @@ export function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState<'category' | 'subcategory' | 'priority' | 'status' | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,6 +52,25 @@ export function Settings() {
     }
   };
 
+  const handleAddItem = (type: 'category' | 'subcategory' | 'priority' | 'status') => {
+    setModalType(type);
+    setEditingItem(null);
+    setShowModal(true);
+  };
+
+  const handleEditItem = (type: 'category' | 'subcategory' | 'priority' | 'status', item: any) => {
+    setModalType(type);
+    setEditingItem(item);
+    setShowModal(true);
+  };
+
+  const handleManageSubcategories = (category: Category) => {
+    setSelectedCategory(category);
+    setModalType('subcategory');
+    setEditingItem(null);
+    setShowModal(true);
+  };
+
   const handleSaveSettings = async () => {
     if (!settings) return;
     
@@ -62,6 +89,7 @@ export function Settings() {
     { id: 'general', name: 'General', icon: Globe },
     { id: 'branding', name: 'Branding', icon: Palette },
     { id: 'categories', name: 'Categories', icon: Shield },
+    { id: 'subcategories', name: 'Subcategories', icon: Plus },
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'email', name: 'Email', icon: Mail },
   ];
@@ -272,109 +300,232 @@ export function Settings() {
           )}
 
           {activeTab === 'categories' && (
+            <div className="space-y-6">
+              {/* Categories */}
+              <Card>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Ticket Categories
+                  </h3>
+                  <Button onClick={() => handleAddItem('category')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Category
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {categories.map((category) => (
+                    <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {category.name}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {category.description}
+                          </p>
+                          {category.subCategories && category.subCategories.length > 0 && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              {category.subCategories.length} subcategor{category.subCategories.length === 1 ? 'y' : 'ies'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={category.isActive ? 'success' : 'default'}>
+                          {category.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleManageSubcategories(category)}
+                          title="Manage Subcategories"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEditItem('category', category)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Priorities */}
+              <Card>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Priority Levels
+                  </h3>
+                  <Button onClick={() => handleAddItem('priority')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Priority
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {priorities.map((priority) => (
+                    <div key={priority.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: priority.color }}
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {priority.name}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Level {priority.level}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={priority.isActive ? 'success' : 'default'}>
+                          {priority.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEditItem('priority', priority)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Statuses */}
+              <Card>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Ticket Statuses
+                  </h3>
+                  <Button onClick={() => handleAddItem('status')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Status
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {statuses.map((status) => (
+                    <div key={status.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: status.color }}
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {status.name}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {status.isClosed ? 'Closed status' : 'Open status'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={status.isActive ? 'success' : 'default'}>
+                          {status.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEditItem('status', status)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'subcategories' && (
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Categories & Priorities
+                  Subcategories Management
                 </h3>
-                <Button size="sm">
-                  Add Category
-                </Button>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Manage subcategories for each category
+                </p>
               </div>
               
-              <div className="space-y-6">
-                {/* Categories */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-                    Ticket Categories
-                  </h4>
-                  <div className="space-y-2">
-                    {categories.map((category) => (
-                      <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: category.color }}
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {category.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {category.description}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">Edit</Button>
-                          <Button variant="ghost" size="sm" className="text-red-600">Delete</Button>
-                        </div>
+              <div className="space-y-4">
+                {categories.map((category) => (
+                  <div key={category.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                        <h4 className="text-md font-medium text-gray-900 dark:text-white">
+                          {category.name}
+                        </h4>
+                        <Badge variant={category.isActive ? 'success' : 'default'}>
+                          {category.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Priorities */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-                    Priority Levels
-                  </h4>
-                  <div className="space-y-2">
-                    {priorities.map((priority) => (
-                      <div key={priority.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: priority.color }}
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {priority.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Level {priority.level}
-                            </p>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleManageSubcategories(category)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Manage Subcategories
+                      </Button>
+                    </div>
+                    
+                    {category.subCategories && category.subCategories.length > 0 ? (
+                      <div className="space-y-2">
+                        {category.subCategories.map((subCategory) => (
+                          <div key={subCategory.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {subCategory.name}
+                              </p>
+                              {subCategory.description && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {subCategory.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={subCategory.isActive ? 'success' : 'default'}>
+                                {subCategory.isActive ? 'Active' : 'Inactive'}
+                              </Badge>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  handleEditItem('subcategory', subCategory);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">Edit</Button>
-                          <Button variant="ghost" size="sm" className="text-red-600">Delete</Button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                        No subcategories defined for this category
+                      </p>
+                    )}
                   </div>
-                </div>
-
-                {/* Statuses */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-                    Ticket Statuses
-                  </h4>
-                  <div className="space-y-2">
-                    {statuses.map((status) => (
-                      <div key={status.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: status.color }}
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {status.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {status.isClosed ? 'Closed status' : 'Open status'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">Edit</Button>
-                          <Button variant="ghost" size="sm" className="text-red-600">Delete</Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
             </Card>
           )}
@@ -513,6 +664,83 @@ export function Settings() {
           )}
         </div>
       </div>
+
+      {/* Modal for adding/editing items */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={`${editingItem ? 'Edit' : 'Add'} ${modalType}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          {modalType === 'subcategory' && selectedCategory && (
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Category:</p>
+              <p className="font-medium text-gray-900 dark:text-white">{selectedCategory.name}</p>
+            </div>
+          )}
+          
+          <Input
+            label="Name"
+            placeholder={`Enter ${modalType} name`}
+            defaultValue={editingItem?.name || ''}
+          />
+          <Input
+            label="Description"
+            placeholder={`Enter ${modalType} description`}
+            defaultValue={editingItem?.description || ''}
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Color
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="color"
+                defaultValue={editingItem?.color || '#3b82f6'}
+                className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+              />
+              <Input
+                placeholder="#3b82f6"
+                defaultValue={editingItem?.color || '#3b82f6'}
+                className="flex-1"
+              />
+            </div>
+          </div>
+          {modalType === 'priority' && (
+            <Input
+              label="Level"
+              type="number"
+              placeholder="Priority level (1-5)"
+              defaultValue={editingItem?.level || 1}
+              min="1"
+              max="5"
+            />
+          )}
+          {modalType === 'status' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Status Type
+              </label>
+              <select
+                defaultValue={editingItem?.isClosed ? 'closed' : 'open'}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="open">Open Status</option>
+                <option value="closed">Closed Status</option>
+              </select>
+            </div>
+          )}
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button variant="outline" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setShowModal(false)}>
+              {editingItem ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

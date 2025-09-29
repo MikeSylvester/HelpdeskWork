@@ -1,52 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { KeyboardShortcuts } from '../ui/KeyboardShortcuts';
-import { useAppStore } from '../../stores/app';
+import { TestingGuide } from '../TestingGuide';
 
-export function Layout() {
-  const { isDarkMode } = useAppStore();
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Apply dark mode to document
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block fixed inset-y-0 left-0 z-30">
-        <Sidebar />
+      {/* Header - Fixed at top */}
+      <div className="sticky top-0 z-20">
+        <Header onMobileMenuToggle={() => setMobileMenuOpen(true)} />
       </div>
 
-      {/* Mobile sidebar */}
-      <Sidebar
-        isMobile
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-      />
-
-      {/* Main content */}
-      <div className="lg:pl-64 flex flex-col min-h-screen">
-        <div className="sticky top-0 z-20">
-          <Header onMobileMenuToggle={() => setMobileMenuOpen(true)} />
+      <div className="flex h-screen">
+        {/* Desktop sidebar */}
+        <div className="hidden lg:block flex-shrink-0">
+          <Sidebar />
         </div>
-        
+
+        {/* Mobile sidebar */}
+        <Sidebar
+          isMobile
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        />
+
+        {/* Main content */}
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          <div className="max-w-7xl mx-auto">
-            <Outlet />
+          <div className="w-full">
+            {children}
           </div>
         </main>
       </div>
       
       {/* Keyboard shortcuts */}
       <KeyboardShortcuts />
+      
+      {/* Testing Guide - Only show in development */}
+      {import.meta.env.DEV && <TestingGuide />}
     </div>
   );
 }

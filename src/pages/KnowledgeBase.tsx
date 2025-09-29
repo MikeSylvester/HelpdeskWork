@@ -137,7 +137,7 @@ export function KnowledgeBase() {
           <div className="space-y-4">
             {filteredArticles.length > 0 ? (
               filteredArticles.map((article) => {
-                const category = getCategoryById(article.categoryId);
+                const category = categories.find(c => c.id === article.categoryId);
                 const helpfulPercentage = article.helpful + article.notHelpful > 0 
                   ? Math.round((article.helpful / (article.helpful + article.notHelpful)) * 100)
                   : 0;

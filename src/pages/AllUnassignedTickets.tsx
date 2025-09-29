@@ -1,31 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, MessageCircle, Clock, User, UserCheck } from 'lucide-react';
-import { TicketSorter, SortField } from '../components/ui/TicketSorter';
-import { Pagination } from '../components/ui/Pagination';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/auth';
-import { apiService } from '../services/api';
+import { Search, User as UserIcon, Clock, Star, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { TicketCard } from '../components/ui/TicketCard';
-import { formatRelativeTime } from '../utils';
-import type { Ticket, User as UserType, Category, Priority, TicketStatus } from '../types';
+import { TicketSorter, SortField } from '../components/ui/TicketSorter';
+import { Pagination } from '../components/ui/Pagination';
+import { apiService } from '../services/api';
+import type { Ticket, User, Category, Priority, TicketStatus } from '../types';
 
-export function AllTickets() {
-  const { user } = useAuthStore();
+export function AllUnassignedTickets() {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [priorities, setPriorities] = useState<Priority[]>([]);
-  const [statuses, setStatuses] = useState<TicketStatus[]>([]);
+  const [statuses, setTicketStatuses] = useState<TicketStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [selectedPriority, setSelectedPriority] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,91 +32,72 @@ export function AllTickets() {
   });
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadData = async () => {
       try {
         const [ticketsResult, usersData, categoriesData, prioritiesData, statusesData] = await Promise.all([
-          apiService.getTickets({ page: currentPage, limit: pageSize }),
+          apiService.getTickets({ page: currentPage, limit: pageSize, unassignedOnly: true }),
           apiService.getUsers(),
           apiService.getCategories(),
           apiService.getPriorities(),
           apiService.getTicketStatuses(),
         ]);
-
+        
         setTickets(ticketsResult.tickets);
-        setFilteredTickets(ticketsResult.tickets);
         setPagination(ticketsResult.pagination);
         setUsers(usersData);
         setCategories(categoriesData);
         setPriorities(prioritiesData);
-        setStatuses(statusesData);
+        setTicketStatuses(statusesData);
       } catch (error) {
-        console.error('Failed to fetch tickets:', error);
+        console.error('Failed to load data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
+    loadData();
   }, [currentPage, pageSize]);
 
-  // Client-side filtering (search only) since sorting and status/category filtering are now server-side
-  useEffect(() => {
-    let filtered = [...tickets];
+  // Filter for unassigned tickets (no assignedAgentId and no assignedAgents)
+  const unassignedTickets = tickets.filter(ticket => 
+    !ticket.assignedAgentId && 
+    (!ticket.assignedAgents || ticket.assignedAgents.length === 0) &&
+    ticket.status !== 'resolved' && 
+    ticket.status !== 'closed'
+  );
 
-    if (searchTerm) {
-      filtered = filtered.filter(ticket =>
-        ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ticket.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const filteredTickets = unassignedTickets.filter(ticket => {
+    const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ticket.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesPriority = !selectedPriority || ticket.priority === selectedPriority;
+    const matchesCategory = !selectedCategory || ticket.category === selectedCategory;
+    
+    return matchesSearch && matchesPriority && matchesCategory;
+  }).sort((a, b) => {
+    let aValue: any, bValue: any;
+    
+    if (sortField === 'date') {
+      aValue = new Date(a.createdAt).getTime();
+      bValue = new Date(b.createdAt).getTime();
+    } else if (sortField === 'priority') {
+      const priorityOrder = { 'urgent': 0, 'high': 1, 'medium': 2, 'low': 3 };
+      aValue = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 5;
+      bValue = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 5;
     }
-
-    setFilteredTickets(filtered);
-  }, [tickets, searchTerm]);
-
-  // Refetch data when filters change
-  useEffect(() => {
-    const fetchFilteredTickets = async () => {
-      try {
-        setIsLoading(true);
-        const filters: any = { page: currentPage, limit: pageSize };
-        
-        if (statusFilter !== 'all') {
-          const status = statuses.find(s => s.id === statusFilter);
-          if (status) filters.status = status.name.toLowerCase();
-        }
-        
-        if (categoryFilter !== 'all') {
-          const category = categories.find(c => c.id === categoryFilter);
-          if (category) filters.category = category.name.toLowerCase();
-        }
-
-        const ticketsResult = await apiService.getTickets(filters);
-        setTickets(ticketsResult.tickets);
-        setFilteredTickets(ticketsResult.tickets);
-        setPagination(ticketsResult.pagination);
-      } catch (error) {
-        console.error('Failed to fetch filtered tickets:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (statusFilter !== 'all' || categoryFilter !== 'all') {
-      fetchFilteredTickets();
+    
+    if (aValue === bValue) return 0;
+    
+    if (sortDirection === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
     }
-  }, [statusFilter, categoryFilter, currentPage, pageSize, statuses, categories]);
-
-
-  const getUserById = (id: string) => users.find(u => u.id === id);
-  const getCategoryById = (id: string) => categories.find(c => c.id === id);
-  const getPriorityById = (id: string) => priorities.find(p => p.id === p.id);
-  const getStatusById = (id: string) => statuses.find(s => s.id === id);
+  });
 
   const handleSortChange = (field: SortField, direction: 'asc' | 'desc') => {
     setSortField(field);
     setSortDirection(direction);
-    // Reset to page 1 when sorting changes
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to page 1 when sorting changes
   };
 
   const handlePageChange = (page: number) => {
@@ -138,10 +113,10 @@ export function AllTickets() {
       try {
         const ticketsResult = await apiService.getTickets({ 
           page: 1, 
-          limit: newPageSize
+          limit: newPageSize, 
+          unassignedOnly: true 
         });
         setTickets(ticketsResult.tickets);
-        setFilteredTickets(ticketsResult.tickets);
         setPagination(ticketsResult.pagination);
       } catch (error) {
         console.error('Failed to refetch tickets:', error);
@@ -150,13 +125,6 @@ export function AllTickets() {
     
     refetchData();
   };
-
-  const openTickets = filteredTickets.filter(t => 
-    t.status === 'New' || 
-    t.status === 'In Progress' || 
-    t.status === 'Waiting for Customer'
-  );
-  const unassignedTickets = filteredTickets.filter(t => !t.assignedAgentId);
 
   if (isLoading) {
     return (
@@ -179,55 +147,23 @@ export function AllTickets() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          All Tickets
+          All Unassigned Tickets
         </h1>
         <p className="mt-1 text-gray-600 dark:text-gray-400">
-          Manage and assign support tickets
+          Tickets that haven't been assigned to any agent yet
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/20">
-              <MessageCircle className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Tickets
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {tickets.length}
-              </p>
-            </div>
-          </div>
-        </Card>
-        
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <div className="flex items-center">
             <div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/20">
-              <Clock className="h-6 w-6 text-orange-600" />
+              <UserIcon className="h-6 w-6 text-orange-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Open Tickets
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {openTickets.length}
-              </p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/20">
-              <User className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Unassigned
+                Unassigned Tickets
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {unassignedTickets.length}
@@ -238,15 +174,31 @@ export function AllTickets() {
         
         <Card>
           <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/20">
-              <UserCheck className="h-6 w-6 text-green-600" />
+            <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/20">
+              <Clock className="h-6 w-6 text-red-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                My Assigned
+                High Priority
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {tickets.filter(t => t.assignedToId === user?.id).length}
+                {unassignedTickets.filter(t => t.priority === 'urgent' || t.priority === 'high').length}
+              </p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card>
+          <div className="flex items-center">
+            <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+              <Star className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Open Status
+              </p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {unassignedTickets.filter(t => t.status === 'open').length}
               </p>
             </div>
           </div>
@@ -258,32 +210,36 @@ export function AllTickets() {
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex-1">
             <Input
-              placeholder="Search tickets..."
+              placeholder="Search unassigned tickets..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)} 
               leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="all">All Status</option>
-              {statuses.map(status => (
-                <option key={status.id} value={status.id}>{status.name}</option>
+              <option value="">All Priorities</option>
+              {priorities.map(priority => (
+                <option key={priority.id} value={priority.name.toLowerCase()}>
+                  {priority.name}
+                </option>
               ))}
             </select>
             
             <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="all">All Categories</option>
+              <option value="">All Categories</option>
               {categories.map(category => (
-                <option key={category.id} value={category.id}>{category.name}</option>
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
               ))}
             </select>
 
@@ -308,13 +264,7 @@ export function AllTickets() {
               categories={categories}
               priorities={priorities}
               statuses={statuses}
-              onClick={() => {
-                // Check if user has rights to edit this ticket
-                const canEdit = user?.id === ticket.requesterId || user?.roles.includes('admin') || user?.roles.includes('agent');
-                if (canEdit) {
-                  navigate(`/tickets/${ticket.ticketId}`);
-                }
-              }}
+              onClick={() => navigate(`/tickets/${ticket.ticketId}`)}
             />
           ))
         ) : (
@@ -322,7 +272,7 @@ export function AllTickets() {
             <div className="text-center py-12">
               <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No tickets found
+                No unassigned tickets found
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
                 Try adjusting your search or filters
