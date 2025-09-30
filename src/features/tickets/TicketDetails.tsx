@@ -337,6 +337,11 @@ export function TicketDetails({ ticketId }: TicketDetailsProps) {
   };
 
   const handleAddContact = (userId: string) => {
+    // Prevent adding the requester as an additional contact
+    if (userId === ticket?.requesterId) {
+      return;
+    }
+    
     if (!editAdditionalContacts.includes(userId)) {
       setEditAdditionalContacts(prev => [...prev, userId]);
     }
@@ -901,6 +906,7 @@ export function TicketDetails({ ticketId }: TicketDetailsProps) {
                             {users
                               .filter(u => 
                                 u.id !== user?.id && 
+                                u.id !== ticket.requesterId &&
                                 !editAdditionalContacts.includes(u.id) &&
                                 (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
                                  u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
@@ -931,6 +937,7 @@ export function TicketDetails({ ticketId }: TicketDetailsProps) {
                               ))}
                             {users.filter(u => 
                               u.id !== user?.id && 
+                              u.id !== ticket.requesterId &&
                               !editAdditionalContacts.includes(u.id) &&
                               (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
                                u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
@@ -938,7 +945,7 @@ export function TicketDetails({ ticketId }: TicketDetailsProps) {
                                u.email.toLowerCase().includes(contactSearch.toLowerCase()))
                             ).length === 0 && (
                               <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                                No users found
+                                {contactSearch.trim() ? 'No users found' : 'No additional users available (requester and current user are excluded)'}
                   </div>
                             )}
                           </div>
@@ -1407,6 +1414,41 @@ export function TicketDetails({ ticketId }: TicketDetailsProps) {
             </div>
           </Card>
 
+          {/* Additional Contacts */}
+          {ticket.additionalContacts && ticket.additionalContacts.length > 0 && (
+            <Card>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <UserPlus className="h-5 w-5 mr-2" />
+                Additional Contacts
+              </h3>
+              <div className="space-y-4">
+                {ticket.additionalContacts.map((contact, index) => (
+                  <div key={index} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Name</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{contact.name}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Email</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{contact.email}</span>
+                      </div>
+                      {contact.phone && (
+                        <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Phone</span>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">{contact.phone}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Role</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{contact.role}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Resolution Info */}
           {ticket.resolution && (

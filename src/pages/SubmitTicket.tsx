@@ -144,6 +144,11 @@ export function SubmitTicket() {
   };
 
   const handleAddContact = (userId: string) => {
+    // Prevent adding the requester as an additional contact
+    if (userId === formData.requesterId) {
+      return;
+    }
+    
     if (!additionalContacts.includes(userId)) {
       setAdditionalContacts(prev => [...prev, userId]);
     }
@@ -636,6 +641,7 @@ export function SubmitTicket() {
                     {users
                       .filter(u => 
                         u.id !== user?.id && 
+                        u.id !== formData.requesterId &&
                         !additionalContacts.includes(u.id) &&
                         (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
                          u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
@@ -666,6 +672,7 @@ export function SubmitTicket() {
                       ))}
                     {users.filter(u => 
                       u.id !== user?.id && 
+                      u.id !== formData.requesterId &&
                       !additionalContacts.includes(u.id) &&
                       (u.displayName?.toLowerCase().includes(contactSearch.toLowerCase()) ||
                        u.firstName.toLowerCase().includes(contactSearch.toLowerCase()) ||
@@ -673,7 +680,7 @@ export function SubmitTicket() {
                        u.email.toLowerCase().includes(contactSearch.toLowerCase()))
                     ).length === 0 && (
                       <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                        No users found
+                        {contactSearch.trim() ? 'No users found' : 'No additional users available (requester and current user are excluded)'}
                       </div>
                     )}
                   </div>
