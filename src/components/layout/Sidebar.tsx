@@ -221,7 +221,7 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
                     {user.firstName} {user.lastName}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                    {user.roles.join(', ')}
+                    {(user?.roles ?? ['user']).join(', ')}
                   </p>
                 </div>
               </button>
@@ -510,7 +510,7 @@ export function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarPro
                         {user.firstName} {user.lastName}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                        {user.roles.join(', ')}
+                        {(user?.roles ?? ['user']).join(', ')}
                       </p>
                     </div>
                     <ChevronDown className={cn(
