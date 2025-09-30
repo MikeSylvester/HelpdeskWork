@@ -10,13 +10,19 @@ export function Reports() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [dateRange, setDateRange] = useState('7d');
+  const [dateRange, setDateRange] = useState('30d');
+  const [customDateRange, setCustomDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [useCustomRange, setUseCustomRange] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setIsLoading(true);
         const [metricsData, categoriesData] = await Promise.all([
-          apiService.getDashboardMetrics(),
+          apiService.getDashboardMetrics(useCustomRange ? undefined : dateRange),
           apiService.getCategories(),
         ]);
         setMetrics(metricsData);
@@ -29,7 +35,7 @@ export function Reports() {
     };
 
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, useCustomRange]);
 
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
 
@@ -105,17 +111,70 @@ export function Reports() {
             Track performance metrics and analyze support trends
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <select
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          >
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="1y">Last year</option>
-          </select>
+        <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+          {/* Date Range Selector */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="preset-range"
+                name="dateRangeType"
+                checked={!useCustomRange}
+                onChange={() => setUseCustomRange(false)}
+                className="text-orange-600 focus:ring-orange-500"
+              />
+              <label htmlFor="preset-range" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Preset Range
+              </label>
+            </div>
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              disabled={useCustomRange}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="6m">Last 6 months</option>
+              <option value="1y">Last year</option>
+            </select>
+          </div>
+
+          {/* Custom Date Range */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="custom-range"
+                name="dateRangeType"
+                checked={useCustomRange}
+                onChange={() => setUseCustomRange(true)}
+                className="text-orange-600 focus:ring-orange-500"
+              />
+              <label htmlFor="custom-range" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Custom Range
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="date"
+                value={customDateRange.startDate}
+                onChange={(e) => setCustomDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                disabled={!useCustomRange}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <span className="text-gray-500 dark:text-gray-400">to</span>
+              <input
+                type="date"
+                value={customDateRange.endDate}
+                onChange={(e) => setCustomDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                disabled={!useCustomRange}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </div>
+          </div>
+
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export

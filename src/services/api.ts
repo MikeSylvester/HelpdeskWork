@@ -649,9 +649,115 @@ class ApiService {
   }
 
   // Dashboard
-  async getDashboardMetrics(): Promise<DashboardMetrics> {
+  async getDashboardMetrics(dateRange?: string): Promise<DashboardMetrics> {
     await this.delay(600);
-    return mockDashboardMetrics;
+    
+    // If no date range specified, return mock data
+    if (!dateRange) {
+      return mockDashboardMetrics;
+    }
+    
+    // Calculate date range
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (dateRange) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '6m':
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+    
+    // Get tickets from localStorage
+    await this.initialize();
+    const tickets = localStorageService.getTickets();
+    
+    // Filter tickets by date range
+    const filteredTickets = tickets.filter(ticket => 
+      new Date(ticket.createdAt) >= startDate
+    );
+    
+    // Calculate metrics dynamically
+    const totalTickets = filteredTickets.length;
+    const openTickets = filteredTickets.filter(t => 
+      !['Resolved', 'Closed'].includes(t.status)
+    ).length;
+    const pendingTickets = filteredTickets.filter(t => 
+      t.status === 'Waiting for Customer'
+    ).length;
+    const resolvedTickets = filteredTickets.filter(t => 
+      t.status === 'Resolved'
+    ).length;
+    
+    // Calculate average resolution time
+    const resolvedTicketsWithTime = filteredTickets.filter(t => 
+      t.resolvedAt && t.status === 'Resolved'
+    );
+    const avgResolutionTime = resolvedTicketsWithTime.length > 0 
+      ? resolvedTicketsWithTime.reduce((sum, ticket) => {
+          const resolutionTime = new Date(ticket.resolvedAt!).getTime() - new Date(ticket.createdAt).getTime();
+          return sum + (resolutionTime / (1000 * 60 * 60)); // Convert to hours
+        }, 0) / resolvedTicketsWithTime.length
+      : 0;
+    
+    // Calculate ticket trends (last 7 days)
+    const trends = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayTickets = filteredTickets.filter(t => 
+        new Date(t.createdAt).toISOString().split('T')[0] === dateStr
+      );
+      const dayResolved = filteredTickets.filter(t => 
+        t.resolvedAt && new Date(t.resolvedAt).toISOString().split('T')[0] === dateStr
+      );
+      
+      trends.push({
+        date: dateStr,
+        opened: dayTickets.length,
+        resolved: dayResolved.length
+      });
+    }
+    
+    // Calculate category distribution
+    const categoryDistribution = filteredTickets.reduce((acc, ticket) => {
+      const categoryId = this.getCategoryIdByName(ticket.category);
+      acc[categoryId] = (acc[categoryId] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const categoryDistributionArray = Object.entries(categoryDistribution).map(([categoryId, count]) => ({
+      categoryId,
+      count
+    }));
+    
+    return {
+      totalTickets,
+      openTickets,
+      pendingTickets,
+      resolvedTickets,
+      avgResolutionTime: Math.round(avgResolutionTime * 10) / 10, // Round to 1 decimal
+      ticketTrends: trends,
+      categoryDistribution: categoryDistributionArray
+    };
+  }
+  
+  private getCategoryIdByName(categoryName: string): string {
+    const category = mockCategories.find(c => c.name === categoryName);
+    return category?.id || 'unknown';
   }
 
   // Work Log
